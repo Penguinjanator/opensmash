@@ -781,6 +781,18 @@ body:has(.advanced-overlay:not([hidden])) { overflow: hidden; }
   letter-spacing: .025em;
 }
 .advanced-controllers-note { color: #ad947a; }
+.hid-connect-button {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: #f0d7b0;
+  font: inherit;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  cursor: pointer;
+}
+.hid-connect-button:hover,
+.hid-connect-button:focus-visible { color: #fff; }
 .advanced-input { display: grid; gap: 14px; }
 .advanced-inputs { grid-template-columns: repeat(4, minmax(0, 1fr)); }
 .controller-profile-list {

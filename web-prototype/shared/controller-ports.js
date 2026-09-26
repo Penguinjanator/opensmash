@@ -45,6 +45,7 @@ export function padDisplayName(id) {
   const cleaned = String(id || "")
     .replace(/\((?:STANDARD GAMEPAD)?[^)]*Vendor:[^)]*\)/gi, "")
     .replace(/\(STANDARD GAMEPAD\)/gi, "")
+    .replace(/\[WebHID\]/g, "")
     .replace(/\s+/g, " ")
     .trim();
   return cleaned || "Controller";

@@ -10,8 +10,16 @@ test("injects the controller remapper before engine scripts run", () => {
 });
 
 test("does not inject the remapper twice", () => {
-  const html = '<head><script src="/controller-remap.js"></script></head>';
-  assert.equal(withControllerRemap(html), html);
+  const once = withControllerRemap("<head></head>");
+  assert.equal(withControllerRemap(once), once);
+});
+
+test("loads the WebHID pad adapter before the remapper", () => {
+  const result = withControllerRemap("<head></head><body><script>boot()</script></body>");
+  assert.ok(result.indexOf("webhid-gamepads.js") < result.indexOf("controller-remap.js"));
+  const legacy = withControllerRemap('<head><script src="/controller-remap.js"></script></head>');
+  assert.ok(legacy.indexOf("webhid-gamepads.js") >= 0 && legacy.indexOf("webhid-gamepads.js") < legacy.indexOf("controller-remap.js"));
+  assert.equal(legacy.match(/controller-remap\.js/g).length, 1);
 });
 
 test('N64 keyboard adapter installs before engine scripts and is idempotent', async () => {

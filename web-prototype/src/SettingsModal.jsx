@@ -19,6 +19,34 @@ import {
   normalizeAdvancedOptions,
 } from "./launch-options.js";
 
+// Chrome on macOS never exposes a Bluetooth Switch Pro Controller to the
+// Gamepad API; public/webhid-gamepads.js reads it over WebHID instead once
+// the player picks it in Chrome's device chooser (needs this click).
+function HidControllerConnect({ gamepads }) {
+  const hid = typeof window !== "undefined" ? window.openSmashHidPads : null;
+  const [status, setStatus] = useState("");
+  if (!hid?.supported) return null;
+  if (gamepads.some((pad) => /\[WebHID\]$/.test(pad.id))) return null;
+
+  async function connect() {
+    setStatus("");
+    try {
+      const attached = await hid.request();
+      setStatus(attached ? "Connected. Press a button if it does not appear." : "");
+    } catch (error) {
+      setStatus(error?.name === "SecurityError" ? "The browser blocked the device picker." : "Could not connect that controller.");
+    }
+  }
+
+  return (
+    <small className="advanced-controllers-note hid-connect-note">
+      Controller not recognized?{" "}
+      <button className="hid-connect-button" type="button" onClick={connect}>Connect</button>
+      {status && <span className="hid-connect-status"> {status}</span>}
+    </small>
+  );
+}
+
 export default function SettingsModal({
   selectedGame = "ssb64",
   engineSettings = null,
@@ -379,6 +407,7 @@ export default function SettingsModal({
                   );
                 })}
               </div>
+              {!isMelee && <HidControllerConnect gamepads={gamepads} />}
               <small className="advanced-controllers-note">Off removes a fighter from the match. At least two fighters must stay enabled. Connect a controller to fill an unassigned CPU slot.</small>
               {humanPorts >= 2 && (
                 <small className="advanced-controllers-note">

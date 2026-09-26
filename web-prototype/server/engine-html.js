@@ -1,8 +1,12 @@
-const CONTROLLER_REMAP_TAG = '<script src="/controller-remap.js"></script>';
+const REMAP_TAG = '<script src="/controller-remap.js"></script>';
+// webhid-gamepads.js must run first: the remapper captures getGamepads once.
+const WEBHID_TAG = '<script src="/webhid-gamepads.js"></script>';
+const CONTROLLER_REMAP_TAG = `${WEBHID_TAG}${REMAP_TAG}`;
 
 export function withControllerRemap(html) {
   const source = String(html || "");
-  if (source.includes(CONTROLLER_REMAP_TAG)) return source;
+  if (source.includes(WEBHID_TAG)) return source;
+  if (source.includes(REMAP_TAG)) return source.replace(REMAP_TAG, CONTROLLER_REMAP_TAG);
   if (source.includes("</head>")) {
     return source.replace("</head>", `  ${CONTROLLER_REMAP_TAG}\n</head>`);
   }
