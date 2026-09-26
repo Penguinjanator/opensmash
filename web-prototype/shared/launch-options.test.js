@@ -6,9 +6,14 @@ import {
   createFullBootIntroConfig,
   engineUrl,
   characterSelectionSlots,
+  PERSISTED_OPTIONS_KEY,
+  SESSION_OPTIONS_KEY,
   hasAdvancedOverrides,
+  loadStoredAdvancedOptions,
   normalizeAdvancedOptions,
+  persistableAdvancedOptions,
   selectDirectBattleOpponents,
+  storeAdvancedOptions,
 } from "../src/launch-options.js";
 
 const CHARACTER = {
@@ -489,4 +494,73 @@ test("explicit slot roles seed VS character select as well as direct battles", (
   assert.equal(query.get("SSB64_BOOT_SLOTS"), "ocho");
   assert.match(query.get("SSB64_BOOT_BATTLE"), /^-1,\d+,4,1,0,-1$/);
   assert.equal(query.get("player"), "2");
+});
+
+function memoryStorage(initial = {}) {
+  const items = new Map(Object.entries(initial));
+  return {
+    getItem: (key) => (items.has(key) ? items.get(key) : null),
+    setItem: (key, value) => items.set(key, String(value)),
+    removeItem: (key) => items.delete(key),
+    items,
+  };
+}
+
+test("settings persist only the fields that differ from defaults", () => {
+  const local = memoryStorage();
+  storeAdvancedOptions({ ...DEFAULT_ADVANCED_OPTIONS, bootMode: "vs-menu", stage: "6" }, { local });
+  assert.deepEqual(JSON.parse(local.getItem(PERSISTED_OPTIONS_KEY)), { bootMode: "vs-menu", stage: "6" });
+
+  storeAdvancedOptions(DEFAULT_ADVANCED_OPTIONS, { local });
+  assert.equal(local.getItem(PERSISTED_OPTIONS_KEY), null);
+});
+
+test("a new visit restores saved settings over current defaults", () => {
+  const local = memoryStorage({ [PERSISTED_OPTIONS_KEY]: JSON.stringify({ bootMode: "vs-menu", renderResolution: "640x480" }) });
+  assert.deepEqual(loadStoredAdvancedOptions({ local, session: memoryStorage() }), {
+    ...DEFAULT_ADVANCED_OPTIONS,
+    ports: [...DEFAULT_ADVANCED_OPTIONS.ports],
+    bootMode: "vs-menu",
+    renderResolution: "640x480",
+  });
+});
+
+test("stale or corrupt saved settings fall back per field", () => {
+  const local = memoryStorage({
+    [PERSISTED_OPTIONS_KEY]: JSON.stringify({ bootMode: "removed-mode", stage: "6", retiredSetting: true }),
+  });
+  const options = loadStoredAdvancedOptions({ local });
+  assert.equal(options.bootMode, DEFAULT_ADVANCED_OPTIONS.bootMode);
+  assert.equal(options.stage, "6");
+  assert.equal("retiredSetting" in options, false);
+
+  assert.deepEqual(
+    loadStoredAdvancedOptions({ local: memoryStorage({ [PERSISTED_OPTIONS_KEY]: "{not json" }) }),
+    normalizeAdvancedOptions({}),
+  );
+});
+
+test("gamepad pins last for the tab but persist as auto", () => {
+  const local = memoryStorage();
+  const session = memoryStorage();
+  const ports = ["gamepad:1", "keyboard", "none", "auto"];
+  storeAdvancedOptions({ ...DEFAULT_ADVANCED_OPTIONS, ports }, { local, session });
+
+  assert.deepEqual(JSON.parse(local.getItem(PERSISTED_OPTIONS_KEY)).ports, ["auto", "keyboard", "none", "auto"]);
+  assert.deepEqual(loadStoredAdvancedOptions({ local, session }).ports, ports);
+  assert.deepEqual(loadStoredAdvancedOptions({ local, session: memoryStorage() }).ports, ["auto", "keyboard", "none", "auto"]);
+  assert.deepEqual(persistableAdvancedOptions({ ports: ["gamepad:0", "auto", "auto", "auto"] }), {});
+});
+
+test("tab settings take precedence over saved settings", () => {
+  const local = memoryStorage({ [PERSISTED_OPTIONS_KEY]: JSON.stringify({ stage: "6" }) });
+  const session = memoryStorage({ [SESSION_OPTIONS_KEY]: JSON.stringify({ stage: "2" }) });
+  assert.equal(loadStoredAdvancedOptions({ local, session }).stage, "2");
+});
+
+test("blocked storage keeps the in-memory choice", () => {
+  const blocked = { getItem() { throw new Error("blocked"); }, setItem() { throw new Error("blocked"); }, removeItem() { throw new Error("blocked"); } };
+  const options = storeAdvancedOptions({ stage: "6" }, { local: blocked, session: blocked });
+  assert.equal(options.stage, "6");
+  assert.deepEqual(loadStoredAdvancedOptions({ local: blocked, session: blocked }), normalizeAdvancedOptions({}));
 });

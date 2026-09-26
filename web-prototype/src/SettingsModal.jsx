@@ -39,6 +39,7 @@ export default function SettingsModal({
   onCancel,
   onLogOut,
   onOptionsChange,
+  onResetAll,
   onResetControllerTutorial,
   onResetRom,
   onReceiveRom,
@@ -50,6 +51,7 @@ export default function SettingsModal({
   const [romError, setRomError] = useState('');
   const [draft, setDraft] = useState(options);
   const [page, setPage] = useState("main");
+  const [confirmResetAll, setConfirmResetAll] = useState(false);
   const [settingsGame, setSettingsGame] = useState(selectedGame);
   const gameTabsRef = useRef(null);
   const isMelee = settingsGame === "melee";
@@ -70,6 +72,8 @@ export default function SettingsModal({
       setSettingsGame(selectedGame);
     }
   }, [open]);
+
+  useEffect(() => setConfirmResetAll(false), [open, page]);
 
   useEffect(() => {
     if (!open) return undefined;
@@ -99,10 +103,23 @@ export default function SettingsModal({
     onOptionsChange(next);
   }
 
-  function restoreDefaults() {
-    const defaults = normalizeAdvancedOptions({...DEFAULT_ADVANCED_OPTIONS, ports: draft.ports, selectionMode: draft.selectionMode});
+  // Each page restores only the fields it shows.
+  function restoreDefaults(keys) {
+    const next = { ...draft };
+    for (const key of keys) next[key] = DEFAULT_ADVANCED_OPTIONS[key];
+    const defaults = normalizeAdvancedOptions(next);
     setDraft(defaults);
     onOptionsChange(defaults);
+  }
+
+  function resetAll() {
+    if (!confirmResetAll) {
+      setConfirmResetAll(true);
+      return;
+    }
+    setConfirmResetAll(false);
+    onResetAll?.();
+    setDraft(normalizeAdvancedOptions(DEFAULT_ADVANCED_OPTIONS));
   }
 
   const title = page === "gameplay"
@@ -171,6 +188,19 @@ export default function SettingsModal({
             <button className="launch-flow-action settings-menu-button" type="button" onClick={() => setPage("bindings")}><span>Keybinds &amp; Controller Mapping</span></button>
             <button className="launch-flow-action settings-menu-button" type="button" onClick={() => setPage("roms")}>ROM Management</button>
             <button className="launch-flow-action settings-menu-button" type="button" onClick={() => setPage("send")}>Share with another device</button>
+            <button
+              className="launch-flow-action settings-menu-button"
+              type="button"
+              aria-describedby={confirmResetAll ? "settings-reset-all-note" : undefined}
+              onClick={resetAll}
+            >
+              {confirmResetAll ? "Confirm Reset All" : "Reset All Settings"}
+            </button>
+            {confirmResetAll && (
+              <small id="settings-reset-all-note" className="settings-reset-all-note" role="status">
+                Restores gameplay, controller, keybind, sound and CRT settings for both games. Your ROM and disc stay saved.
+              </small>
+            )}
             <button
               className="launch-flow-action settings-menu-button"
               type="button"
@@ -298,7 +328,11 @@ export default function SettingsModal({
               </label>
             </div>
             <div className="advanced-actions">
-              <button className="launch-flow-action" type="button" onClick={restoreDefaults}>
+              <button
+                className="launch-flow-action"
+                type="button"
+                onClick={() => restoreDefaults(["bootMode", "stage", "opponentLevel", "characterMesh", "renderResolution", "framePacing"])}
+              >
                 Restore Defaults
               </button>
               <button className="launch-flow-action settings-back-button" type="button" onClick={() => setPage("main")}>
@@ -376,7 +410,14 @@ export default function SettingsModal({
               </section>
             )}
 
-            <BackButton onClick={() => setPage("main")} />
+            <div className="advanced-actions">
+              <button className="launch-flow-action" type="button" onClick={() => restoreDefaults(["selectionMode", "ports"])}>
+                Restore Defaults
+              </button>
+              <button className="launch-flow-action settings-back-button" type="button" onClick={() => setPage("main")}>
+                Back
+              </button>
+            </div>
           </div>
 
           {page === "bindings" && (

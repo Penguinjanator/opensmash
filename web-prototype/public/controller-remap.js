@@ -124,6 +124,10 @@
     return writeProfiles(profiles);
   }
 
+  function clearAllProfiles() {
+    return writeProfiles({});
+  }
+
   function disableProfile(id) {
     if (!id) return false;
     return writeProfiles({ ...readProfiles(), [id]: { mode: "disabled", buttons: {} } });
@@ -278,6 +282,7 @@
 
   const api = Object.freeze({
     profileIds: () => Object.keys(readProfiles()).filter(id => id !== "__default__"),
+    clearAllProfiles,
     clearProfile,
     controls: CONTROL_IDS,
     disableProfile,

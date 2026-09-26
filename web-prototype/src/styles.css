@@ -609,6 +609,12 @@ body:has(.advanced-overlay:not([hidden])) { overflow: hidden; }
   text-align: center;
 }
 .settings-subpage { width: 100%; }
+.settings-reset-all-note {
+  color: #806e5d;
+  font: 500 13px/1.4 "Kanit", sans-serif;
+  letter-spacing: .03em;
+  text-align: center;
+}
 .settings-login-page .auth-gate {
   min-height: 0;
   gap: clamp(24px, 4vh, 38px);

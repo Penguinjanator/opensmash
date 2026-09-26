@@ -1,5 +1,5 @@
 import MeleeControls from '../../engines/melee/web/app/Controls';
-import {MeleeSettings,MeleeDiscSettings as MeleeRomSettings} from '../../engines/melee/launcher/Settings';
+import {MeleeSettings,MeleeDiscSettings as MeleeRomSettings,resetMeleePreferences} from '../../engines/melee/launcher/Settings';
 import {loadSharedRom} from './shared-game-files.js';
 import {loadSettings as loadMeleeSettings} from '../../engines/melee/web/lib/launch';
 import {restoreLocalDisc,localDiscReady,selectLocalDisc,subscribeLocalDisc,retainMelee} from '../../engines/melee/web/lib/melee-session';
@@ -47,9 +47,10 @@ import {
   characterSelectionSlots,
   engineUrl,
   hasAdvancedOverrides,
-  normalizeAdvancedOptions,
+  loadStoredAdvancedOptions,
   selectDirectBattleOpponents,
   createFullBootIntroConfig,
+  storeAdvancedOptions,
 } from "./launch-options.js";
 import {
   DEMO_CPU_LEVEL,
@@ -69,8 +70,8 @@ import {
   createTrailerMatchAction,
 } from "./trailer-preset.js";
 import { readCrtEnabled, writeCrtEnabled } from "./crt-preference.js";
+import { n64Keyboard } from "../shared/n64-keyboard.js";
 
-const ADVANCED_OPTIONS_KEY = "opensmash-advanced-options";
 // Posted by BattleShip/web/index.html when the engine cannot obtain its assets.
 const ENGINE_ASSET_ERROR_MESSAGE = "opensmash:engine-asset-error";
 const ENGINE_TRAILER_CAPTURE_SAVED_MESSAGE = "opensmash:trailer-capture-saved";
@@ -185,12 +186,14 @@ function useFlowMusic(flowActive, soundOn) {
   }, [soundOn]);
 }
 
+// Touching window.localStorage itself throws when site data is blocked.
+function optionStorage() {
+  const get = (name) => { try { return window[name]; } catch { return null; } };
+  return { local: get("localStorage"), session: get("sessionStorage") };
+}
+
 function loadAdvancedOptions() {
-  try {
-    return normalizeAdvancedOptions(JSON.parse(sessionStorage.getItem(ADVANCED_OPTIONS_KEY)));
-  } catch {
-    return { ...DEFAULT_ADVANCED_OPTIONS };
-  }
+  return loadStoredAdvancedOptions(optionStorage());
 }
 
 async function getSession() {
@@ -1080,19 +1083,21 @@ export default function App() {
   }, [authorized, loadingCharacters, loadingSession, trailerMode, trailerRecording, isTrailerPage, trailerSetup]);
 
   function updateAdvancedOptions(nextOptions) {
-    const normalized = normalizeAdvancedOptions(nextOptions);
+    const normalized = storeAdvancedOptions(nextOptions, optionStorage());
     window.gameLauncher?.clearPicks?.();
     setAdvancedOptions(normalized);
-    try {
-      sessionStorage.setItem(ADVANCED_OPTIONS_KEY, JSON.stringify(normalized));
-    } catch {
-      // The in-memory choice still applies when session storage is unavailable.
-    }
   }
 
-  function restoreDefaultSettings(nextOptions) {
-    updateAdvancedOptions(nextOptions);
+  // Settings > Reset All Settings: every preference the Settings pages edit,
+  // for both games. The ROM/disc, login and tutorial state are not settings.
+  function resetAllSettings() {
+    updateAdvancedOptions(DEFAULT_ADVANCED_OPTIONS);
     setSoundPreference(true);
+    writeCrtEnabled(true);
+    setCrtOn(true);
+    try { n64Keyboard?.save(n64Keyboard.defaults()); } catch { /* storage blocked */ }
+    window.openSmashControllerRemap?.clearAllProfiles?.();
+    resetMeleePreferences();
   }
 
   async function requestLaunch(action) {
@@ -1736,7 +1741,7 @@ export default function App() {
           onCancel={() => setAdvancedOpen(false)}
           onLogOut={signOutUser}
           onOptionsChange={updateAdvancedOptions}
-          onRestoreDefaults={restoreDefaultSettings}
+          onResetAll={resetAllSettings}
           onResetControllerTutorial={resetControllerTutorialFromAdvanced}
           onResetRom={resetRomFromAdvanced}
           onReceiveRom={validateVisualRom}
@@ -1942,7 +1947,7 @@ export default function App() {
         onCancel={() => setAdvancedOpen(false)}
         onLogOut={signOutUser}
         onOptionsChange={updateAdvancedOptions}
-        onRestoreDefaults={restoreDefaultSettings}
+        onResetAll={resetAllSettings}
         onResetControllerTutorial={resetControllerTutorialFromAdvanced}
         onResetRom={resetRomFromAdvanced}
         onReceiveRom={validateVisualRom}

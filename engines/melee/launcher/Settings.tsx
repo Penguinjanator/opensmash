@@ -1,6 +1,7 @@
 import {useEffect,useState} from 'react';
 import LaunchSettings from '../web/app/LaunchSettings';
 import {loadSettings,defaults,type Settings} from '../web/lib/launch';
+import {defaults as defaultBindings,saveBindings} from '../web/lib/controls';
 import {desktop,preferences} from '../web/lib/desktop';
 import {restoreLocalDisc,selectLocalDisc,subscribeLocalDisc,clearLocalDisc,localDiscReady} from '../web/lib/melee-session';
 import {pollService} from '../web/lib/service-poll';
@@ -28,6 +29,11 @@ export function MeleeDiscSettings(){
  return <section className="melee-disc-settings"><h3>Melee disc</h3><p role="status">{status}</p>{error&&<p role="alert">{error}</p>}
   {ready?<button onClick={()=>void clear()}>Clear disc</button>:desktop()?<button disabled={busy} onClick={()=>void choose()}>Upload disc</button>:<label>{busy?"Checking disc…":"Upload disc"}<input disabled={busy} type="file" accept=".iso,.gcm" onChange={e=>void choose(e.target.files?.[0])}/></label>}
  </section>;
+}
+// Settings > Reset All Settings: launch settings and control bindings.
+export function resetMeleePreferences(){
+ try{preferences.removeItem('melee-launch-v1');}catch{}
+ saveBindings(defaultBindings());
 }
 export function MeleeSettings(){
  const [settings,setSettings]=useState(loadSettings);

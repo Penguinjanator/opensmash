@@ -109,6 +109,59 @@ export function normalizeAdvancedOptions(value) {
   };
 }
 
+// Settings survive across visits in localStorage, and the exact choices for
+// this tab also sit in sessionStorage. Only fields that differ from the
+// defaults are persisted, so a later change to a default still reaches
+// players who never touched that field, and every read goes back through
+// normalizeAdvancedOptions, so a renamed or removed value falls back to its
+// default instead of breaking the launch. Gamepad pins name a browser
+// gamepad index, which is only meaningful while that pad stays connected,
+// so they persist as "auto" and last only for the tab.
+export const PERSISTED_OPTIONS_KEY = "opensmash.ssb64-settings.v1";
+export const SESSION_OPTIONS_KEY = "opensmash-advanced-options";
+
+function readJson(storage, key) {
+  try {
+    return JSON.parse(storage?.getItem(key) ?? "null");
+  } catch {
+    return null;
+  }
+}
+
+export function persistableAdvancedOptions(options) {
+  const normalized = normalizeAdvancedOptions(options);
+  const ports = normalized.ports.map((choice) => (choice.startsWith("gamepad:") ? "auto" : choice));
+  const persisted = {};
+  for (const [key, value] of Object.entries({ ...normalized, ports })) {
+    if (JSON.stringify(value) !== JSON.stringify(DEFAULT_ADVANCED_OPTIONS[key])) persisted[key] = value;
+  }
+  return persisted;
+}
+
+export function loadStoredAdvancedOptions({ local, session } = {}) {
+  const current = readJson(session, SESSION_OPTIONS_KEY);
+  if (current && typeof current === "object") return normalizeAdvancedOptions(current);
+  const saved = readJson(local, PERSISTED_OPTIONS_KEY);
+  return normalizeAdvancedOptions(saved && typeof saved === "object" ? saved : {});
+}
+
+export function storeAdvancedOptions(options, { local, session } = {}) {
+  const normalized = normalizeAdvancedOptions(options);
+  try {
+    session?.setItem(SESSION_OPTIONS_KEY, JSON.stringify(normalized));
+  } catch {
+    // Storage full or blocked: the in-memory choice still applies.
+  }
+  try {
+    const persisted = persistableAdvancedOptions(normalized);
+    if (Object.keys(persisted).length) local?.setItem(PERSISTED_OPTIONS_KEY, JSON.stringify(persisted));
+    else local?.removeItem(PERSISTED_OPTIONS_KEY);
+  } catch {
+    // Same: the choice lasts for this tab only.
+  }
+  return normalized;
+}
+
 export function hasAdvancedOverrides(options) {
   return Object.keys(DEFAULT_ADVANCED_OPTIONS).some(
     (key) => JSON.stringify(options[key]) !== JSON.stringify(DEFAULT_ADVANCED_OPTIONS[key]),
