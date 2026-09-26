@@ -176,6 +176,12 @@
     pointer-events: none;
     image-rendering: auto;
   }
+  .replica-rule-layer > canvas {
+    position: absolute;
+    left: 0;
+    display: block;
+    width: 100%;
+  }
   .replica-cell[data-kind="fighter"],
   .replica-cell[data-kind="creation"] {
     background-color: #080504;

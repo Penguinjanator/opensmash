@@ -350,6 +350,37 @@ function paintPixels(target, pixels, width, height) {
   canvas.getContext('2d').putImageData(new ImageData(pixels, width, height), 0, 0);
 }
 
+// Strip seams sit mid-cell, where the lattice is transparent, so filtering at
+// a strip edge can never blur a visible rule.
+const RULE_STRIP_ROWS = 40 * (CELL_H + RULE);
+const RULE_STRIP_SEAM = RULE + Math.floor(CELL_H / 2);
+
+function paintRuleStrips(container, pixels, width, height) {
+  if (!Number.isInteger(width) || !Number.isInteger(height) || width <= 0 || height <= 0) return;
+  const bounds = [0];
+  for (let y = RULE_STRIP_SEAM + RULE_STRIP_ROWS; y < height; y += RULE_STRIP_ROWS) bounds.push(y);
+  bounds.push(height);
+  const strips = [...container.children];
+  for (let index = 0; index < bounds.length - 1; index++) {
+    const top = bounds[index];
+    const stripHeight = bounds[index + 1] - top;
+    let canvas = strips[index];
+    if (!canvas) {
+      canvas = document.createElement('canvas');
+      container.append(canvas);
+    }
+    canvas.style.top = `${100 * top / height}%`;
+    canvas.style.height = `${100 * stripHeight / height}%`;
+    paintPixels(
+      canvas,
+      pixels.slice(top * width * 4, (top + stripHeight) * width * 4),
+      width,
+      stripHeight
+    );
+  }
+  for (const extra of strips.slice(bounds.length - 1)) extra.remove();
+}
+
 function createImageLayer(className) {
   const image = document.createElement('img');
   image.crossOrigin = 'anonymous';
@@ -630,10 +661,14 @@ CELL_IDS.forEach((id, index) => {
 const actionCells = [...cells.values()].filter(button =>
   ['search', 'create'].includes(button.dataset.kind)
 );
-const ruleCanvas = document.createElement('canvas');
-ruleCanvas.className = 'replica-rule-layer';
-ruleCanvas.setAttribute('aria-hidden', 'true');
-grid.append(ruleCanvas);
+// The rule lattice spans the whole roster (~12k native rows at 1000
+// fighters in four columns). One canvas that tall is past the GPU texture
+// limits of real iPhones, where Safari smears its first row down the board and
+// the tiles vanish. Paint it as a stack of short strips instead.
+const ruleLayer = document.createElement('div');
+ruleLayer.className = 'replica-rule-layer';
+ruleLayer.setAttribute('aria-hidden', 'true');
+grid.append(ruleLayer);
 
 let currentGridLayout;
 let currentVisibleCells = [];
@@ -847,8 +882,8 @@ function applyGridLayout(columns = columnsForContainer(), force = false) {
     );
   });
 
-  paintPixels(
-    ruleCanvas,
+  paintRuleStrips(
+    ruleLayer,
     rulesForBoard(width, height, columns, visibleCells.length),
     width,
     height
