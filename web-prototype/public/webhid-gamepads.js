@@ -25,8 +25,10 @@
   const NINTENDO = 0x057e;
   const PRO_CONTROLLER = 0x2009;
   const FILTERS = [{ vendorId: NINTENDO, productId: PRO_CONTROLLER }];
-  // Past Chrome's fixed four slots so native pads never collide.
-  const FIRST_INDEX = 8;
+  // Take a free slot in Chrome's usual 0-3 range: consumers such as Melee
+  // name devices "gamepad0".."gamepad3". Past that, park beyond native slots.
+  const STANDARD_SLOTS = 4;
+  const OVERFLOW_INDEX = 8;
   const RUMBLE_NEUTRAL = [0x00, 0x01, 0x40, 0x40, 0x00, 0x01, 0x40, 0x40];
   const SPI_STICK_CAL = 0x603d;
   const SPI_STICK_CAL_SIZE = 18;
@@ -61,10 +63,35 @@
     window.dispatchEvent(event);
   }
 
-  function nativeHasTwin() {
-    try {
-      return Array.from(nativeGetGamepads() || []).some((pad) => pad && pad.connected && NATIVE_ID.test(pad.id));
-    } catch { return false; }
+  function readNative() {
+    try { return Array.from(nativeGetGamepads() || []); } catch { return []; }
+  }
+
+  function nativeHasTwin(native = readNative()) {
+    return native.some((pad) => pad && pad.connected && NATIVE_ID.test(pad.id));
+  }
+
+  function pickIndex(pad, native) {
+    const taken = new Set(native.filter((g) => g && g.connected).map((g) => g.index));
+    for (const other of pads) {
+      if (other && other !== pad && other.connected) taken.add(other.snapshot.index);
+    }
+    for (let i = 0; i < STANDARD_SLOTS; i += 1) if (!taken.has(i)) return i;
+    let i = OVERFLOW_INDEX;
+    while (taken.has(i)) i += 1;
+    return i;
+  }
+
+  // A native pad that arrives later wins its slot; move ours out of the way.
+  function resolveCollisions(native) {
+    for (const pad of pads) {
+      if (!pad || !pad.connected) continue;
+      const index = pad.snapshot.index;
+      if (!native.some((g) => g && g.connected && g.index === index)) continue;
+      emit("gamepaddisconnected", { ...pad.snapshot, connected: false });
+      pad.snapshot = { ...pad.snapshot, index: pickIndex(pad, native) };
+      emit("gamepadconnected", pad.snapshot);
+    }
   }
 
   // ---- stick calibration --------------------------------------------------
@@ -116,7 +143,7 @@
     };
     pad.snapshot = {
       id: `${device.productName || "Pro Controller"} (STANDARD GAMEPAD Vendor: 057e Product: 2009) [WebHID]`,
-      index: FIRST_INDEX + slot,
+      index: -1, // assigned on the first input report
       connected: false,
       mapping: "standard",
       timestamp: performance.now(),
@@ -239,7 +266,7 @@
     }
     if (!pad.connected) {
       pad.connected = true;
-      pad.snapshot = { ...pad.snapshot, connected: true };
+      pad.snapshot = { ...pad.snapshot, connected: true, index: pickIndex(pad, readNative()) };
       console.log("webhid pad: connected", pad.snapshot.id, "index", pad.snapshot.index);
       emit("gamepadconnected", pad.snapshot);
     }
@@ -275,7 +302,8 @@
     }
   }
 
-  function list() {
+  function list(native = readNative()) {
+    resolveCollisions(native);
     return pads.filter((pad) => pad && pad.connected).map((pad) => pad.snapshot);
   }
 
@@ -296,16 +324,14 @@
     return () => listeners.delete(fn);
   }
 
-  function padsForGetGamepads() {
-    const mine = host ? host.list() : list();
-    // If Chrome's own driver ever works, prefer it over our copy.
-    return mine.length && nativeHasTwin() ? [] : mine;
-  }
-
   function getGamepads() {
-    let result;
-    try { result = Array.from(nativeGetGamepads() || []); } catch { result = []; }
-    for (const pad of padsForGetGamepads()) result[pad.index] = pad;
+    const result = readNative();
+    const mine = host ? host.list() : list(result);
+    // If Chrome's own driver ever works, prefer it over our copy.
+    if (!mine.length || nativeHasTwin(result)) return result;
+    for (const pad of mine) {
+      if (!result[pad.index]) result[pad.index] = pad;
+    }
     return result;
   }
 

@@ -71,14 +71,14 @@ test("a granted Pro Controller becomes a standard gamepad after its first full r
   assert.equal(pads.length, 1);
   const [pad] = pads;
   assert.equal(pad.mapping, "standard");
-  assert.equal(pad.index, 8);
+  assert.equal(pad.index, 0); // Chrome's usual 0-3 range: Melee names devices gamepad0-3
   assert.equal(pad.buttons[1].pressed, true); // A is the right face button
   assert.equal(pad.buttons[0].pressed, false);
   assert.equal(pad.buttons[14].pressed, true);
   assert.equal(pad.axes[0], 1);
   assert.equal(pad.axes[1], 0);
   assert.equal(events.filter((e) => e.type === "gamepadconnected").length, 1);
-  assert.equal(events[0].gamepad.index, 8);
+  assert.equal(events[0].gamepad.index, 0);
 });
 
 test("stick up maps to negative Y and factory calibration is applied", async () => {
@@ -105,4 +105,22 @@ test("the WebHID copy hides when the browser exposes the same controller nativel
   const pads = navigator.getGamepads().filter(Boolean);
   assert.equal(pads.length, 1);
   assert.equal(pads[0].index, 0);
+});
+
+test("takes the first free standard slot and yields it to a native pad that arrives later", async () => {
+  const device = fakeDevice();
+  const native = [{ id: "Xbox Wireless Controller (STANDARD GAMEPAD Vendor: 045e Product: 0b13)", index: 0, connected: true, axes: [], buttons: [] }];
+  const { navigator, events } = await harness({ granted: [device], native });
+  device.input(0x30, [0, 0x90, 0, 0, 0, ...packStick(2048, 2048), ...packStick(2048, 2048)]);
+  let pads = navigator.getGamepads().filter(Boolean);
+  assert.deepEqual(pads.map((pad) => pad.index), [0, 1]);
+  assert.match(pads[1].id, /\[WebHID\]$/);
+
+  native.push({ id: "DualSense Wireless Controller (STANDARD GAMEPAD Vendor: 054c Product: 0ce6)", index: 1, connected: true, axes: [], buttons: [] });
+  pads = navigator.getGamepads().filter(Boolean);
+  assert.deepEqual(pads.map((pad) => pad.index), [0, 1, 2]);
+  assert.match(pads[2].id, /\[WebHID\]$/);
+  assert.deepEqual(events.map((e) => [e.type, e.gamepad.index]), [
+    ["gamepadconnected", 1], ["gamepaddisconnected", 1], ["gamepadconnected", 2],
+  ]);
 });

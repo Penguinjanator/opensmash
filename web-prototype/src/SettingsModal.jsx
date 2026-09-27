@@ -407,7 +407,7 @@ export default function SettingsModal({
                   );
                 })}
               </div>
-              {!isMelee && <HidControllerConnect gamepads={gamepads} />}
+              <HidControllerConnect gamepads={gamepads} />
               <small className="advanced-controllers-note">Off removes a fighter from the match. At least two fighters must stay enabled. Connect a controller to fill an unassigned CPU slot.</small>
               {humanPorts >= 2 && (
                 <small className="advanced-controllers-note">
