@@ -24,6 +24,11 @@
 .melee-surface .game-panel canvas {height:100%;object-fit:contain;}
 .melee-surface .game-help {display:none;}
 .melee-surface .game-message {position:absolute;inset:0;display:grid;place-content:center;margin:0;background:#000b;z-index:3;}
+.melee-surface .game-message[role=alert] {justify-items:center;gap:12px;text-align:center;}
+.melee-surface .game-message[role=alert]>p {max-width:min(560px,90%);margin:0;font-size:15px;}
+.melee-surface .game-error-details {max-width:min(720px,92vw);text-align:left;font-size:11px;opacity:.75;}
+.melee-surface .game-error-details pre {max-height:30vh;overflow:auto;white-space:pre-wrap;word-break:break-word;margin:6px 0 0;padding:8px;background:#0008;}
+.melee-surface .game-message[role=alert] button {padding:8px 20px;font-weight:600;color:#111;background:#f2f2f2;border:0;border-radius:6px;cursor:pointer;}
 .melee-surface .sound-game,.melee-surface .confirm-game {position:absolute;bottom:8px;z-index:4;}
 .melee-surface .sound-game {left:8px;}.melee-surface .confirm-game {right:8px;}
 @media (pointer:coarse) and (orientation:portrait) {
