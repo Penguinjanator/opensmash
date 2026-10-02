@@ -348,7 +348,7 @@ contains a content hash and `/app-assets/` responses use
 the URL automatically. The media server supports byte ranges for Safari probes
 and seeking. Browser caches may still evict media under storage pressure.
 
-The hosted trailer was encoded from `intro-4x3-high 2-trimmed.webm` at 1280×960,
+The hosted trailer was encoded from `artifacts/trailer-captures/intro-4x3-high-trimmed.webm` (Lincoln + Frida cast, SMASH.FUN title) at 1280×960,
 60 fps, H.264 CRF 24 (medium preset), yuv420p, AAC 128 kbps, with MP4 faststart.
 Keep the video muted with `playsInline` for autoplay; native controls remain
 available when browser autoplay preferences prevent automatic playback.
