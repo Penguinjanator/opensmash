@@ -53,6 +53,7 @@ export default function FighterJobModal({ job, onClose, onDelete, onRetry, onSav
   const [meleeUrl,setMeleeUrl]=useState("");
   const [exportingSource,setExportingSource]=useState(false);
   const [downloadFormat, setDownloadFormat] = useState(null);
+  const [downloadStatus, setDownloadStatus] = useState("");
   const [downloadError, setDownloadError] = useState("");
   const downloadRef = useRef(null);
   useEffect(() => {
@@ -98,7 +99,8 @@ export default function FighterJobModal({ job, onClose, onDelete, onRetry, onSav
     if (downloadRef.current && !downloadRef.current.signal.aborted) return;
     const controller = new AbortController();
     downloadRef.current = controller;
-    setDownloadFormat(format); setDownloadError(""); setCopyMessage("");
+    setDownloadFormat(format); setDownloadStatus(""); setDownloadError(""); setCopyMessage("");
+    const onStatus = (message) => { if (!controller.signal.aborted) setDownloadStatus(message || ""); };
     try {
       const { characterDownload, meleeCostumeFilename, meleePortraitDownload, saveDownload } = await import("./character-download.js");
       let file;
@@ -106,9 +108,9 @@ export default function FighterJobModal({ job, onClose, onDelete, onRetry, onSav
         const { resolveFighters } = await import("../../engines/melee/launcher/resolve.ts");
         const { prepareNativeCostume } = await import("../../engines/melee/web/lib/native-fit.ts");
         const character = { ...job.character, slug: job.slug || job.character?.slug, name: job.name, base: retarget, meleeTarget };
-        const resolved = await resolveFighters({ character }, [], controller.signal, () => {}, { sourceOnly: true });
+        const resolved = await resolveFighters({ character }, [], controller.signal, onStatus, { sourceOnly: true });
         const target = meleeTargetFor(character);
-        file = await prepareNativeCostume({ character: resolved.action.character.slug, target, color: 0, format: 'dat' }, controller.signal);
+        file = await prepareNativeCostume({ character: resolved.action.character.slug, target, color: 0, format: 'dat' }, controller.signal, onStatus);
         file.filename = meleeCostumeFilename(job.character?.name || job.name, MELEE_TARGETS.find(option => option.value === target)?.label || target, file.filename);
       } else if (format === "png") {
         if (!portraitUrl) throw new Error("This character’s portrait is not available yet.");
@@ -125,7 +127,7 @@ export default function FighterJobModal({ job, onClose, onDelete, onRetry, onSav
     } finally {
       if (downloadRef.current === controller) {
         downloadRef.current = null;
-        if (!controller.signal.aborted) setDownloadFormat(null);
+        if (!controller.signal.aborted) { setDownloadFormat(null); setDownloadStatus(""); }
       }
     }
   }
@@ -302,7 +304,7 @@ export default function FighterJobModal({ job, onClose, onDelete, onRetry, onSav
                   {!portraitUrl && <p>A portrait isn’t available for this character yet.</p>}
                 </section>
                 <div className="fighter-settings">
-                  {downloadFormat && <p role="status">{downloadFormat === "dat" ? "Preparing your character for Melee costume export…" : downloadFormat === "png" ? "Preparing your portrait…" : downloadFormat === "obj" ? "Converting your character to OBJ…" : "Downloading your character…"}</p>}
+                  {downloadFormat && <p role="status">{downloadFormat === "dat" ? (downloadStatus || "Preparing your character for Melee costume export…") : downloadFormat === "png" ? "Preparing your portrait…" : downloadFormat === "obj" ? "Converting your character to OBJ…" : "Downloading your character…"}</p>}
                   {downloadError && <p role="alert">{downloadError}</p>}
                 </div>
               </section>

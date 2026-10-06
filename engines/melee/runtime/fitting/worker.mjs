@@ -22,8 +22,10 @@ self.onmessage=async ({data})=>{
     const target={...rig,...rig.layouts[color]};
     if(source.version!==1||target.version!==1)throw Error('Unsupported native fitting asset version');
     const loaded=performance.now();
+    self.postMessage({status:'Fitting the costume in your browser…'});
     const input={...source,...target,origins:target.mode==='round'?source.roundOrigins:source.humanoidOrigins,normals:target.mode==='round'?source.normals:source.smoothNormals};
     const fitted=fitCharacter(module,input),fitDone=performance.now();
+    self.postMessage({status:'Packing the costume file…'});
     const bytes=data.format==='dat'?buildStandardCostume(template,source,target,fitted,texture,color):buildCostume(template,source,target,fitted,texture,color,identity);
     self.postMessage({format:data.format||'runtime',filename:target.slots[color].filename,bytes,metrics:{character,target:slug,loadMs:loaded-start,fitMs:fitDone-loaded,packMs:performance.now()-fitDone,totalMs:performance.now()-start}},[bytes]);
   }catch(error){self.postMessage({error:error.message||String(error)});}
