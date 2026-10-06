@@ -47,6 +47,10 @@ export function createEmbeddedMeleeHandler({env=process.env,spawnProcess=spawn}=
     });
     return true;
   };
+  // Start the Python child as soon as the instance is up instead of on the
+  // first Melee request, so no player pays its ~10 s startup. Failures are
+  // logged only; the lazy path above still retries on demand.
+  handle.warm=()=>start().catch(error=>console.error('[melee] warm start failed:',error.message));
   handle.close=()=>{stop();process.removeListener('exit',stop);};
   return handle;
 }

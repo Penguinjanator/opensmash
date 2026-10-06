@@ -1419,5 +1419,6 @@ await authService.init();
 await fighterJobs.init();
 await bakedRoster().catch((error) => console.warn(`Baked roster unavailable at boot: ${error.message}`));
 server.listen(PORT, HOST, () => {
+  if (process.env.MELEE_EMBEDDED === "1" && process.env.MELEE_WARM_START !== "0") handleMelee.warm?.();
   console.log(`OpenSmash web: http://${HOST}:${PORT}`);
 });
