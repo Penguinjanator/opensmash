@@ -1,4 +1,4 @@
-import { MELEE_TARGETS } from "../shared/melee-targets.js";
+import { MELEE_TARGETS, meleeTargetFor } from "../shared/melee-targets.js";
 import { useEffect, useRef, useState } from "react";
 import { availableFighterTargets, CHARACTER_MESHES } from "../shared/fighter-targets.js";
 import ModalPage from "./ModalPage.jsx";
@@ -85,6 +85,7 @@ export default function FighterJobModal({ job, onClose, onDelete, onRetry, onSav
   const downloadUrl = job.character?.bundleUrl
     ? new URL(job.character.bundleUrl, window.location.origin).href
     : "";
+  const portraitUrl = job.character?.portraitFull || job.artifacts?.portrait?.url || job.character?.portrait;
   const failed = job.status === "failed";
   const progress = Math.max(0, Math.min(100, Number(job.progress) || 0));
   const startedAt = Date.parse(job.startedAt || job.createdAt || "");
@@ -97,14 +98,28 @@ export default function FighterJobModal({ job, onClose, onDelete, onRetry, onSav
     if (downloadRef.current && !downloadRef.current.signal.aborted) return;
     const controller = new AbortController();
     downloadRef.current = controller;
-    setDownloadFormat(format); setDownloadError("");
+    setDownloadFormat(format); setDownloadError(""); setCopyMessage("");
     try {
-      const { characterDownload, saveDownload } = await import("./character-download.js");
-      const file = await characterDownload(downloadUrl, format, {
+      const { characterDownload, meleeCostumeFilename, meleePortraitDownload, saveDownload } = await import("./character-download.js");
+      let file;
+      if (format === "dat") {
+        const { resolveFighters } = await import("../../engines/melee/launcher/resolve.ts");
+        const { prepareNativeCostume } = await import("../../engines/melee/web/lib/native-fit.ts");
+        const character = { ...job.character, slug: job.slug || job.character?.slug, name: job.name, base: retarget, meleeTarget };
+        const resolved = await resolveFighters({ character }, [], controller.signal, () => {}, { sourceOnly: true });
+        const target = meleeTargetFor(character);
+        file = await prepareNativeCostume({ character: resolved.action.character.slug, target, color: 0, format: 'dat' }, controller.signal);
+        file.filename = meleeCostumeFilename(job.character?.name || job.name, MELEE_TARGETS.find(option => option.value === target)?.label || target, file.filename);
+      } else if (format === "png") {
+        if (!portraitUrl) throw new Error("This character’s portrait is not available yet.");
+        file = await meleePortraitDownload(portraitUrl, job.character?.name || job.name || job.slug, controller.signal);
+      } else file = await characterDownload(downloadUrl, format, {
         name: job.slug || job.character?.name || job.name,
         fkind: CHARACTER_MESHES.find(target => target.value === retarget)?.fkind,
       }, controller.signal);
-      if (!controller.signal.aborted) saveDownload(file);
+      if (!controller.signal.aborted) {
+        saveDownload(file);
+      }
     } catch (error) {
       if (!controller.signal.aborted) setDownloadError(error.message || "Could not prepare this download. Please try again.");
     } finally {
@@ -166,6 +181,9 @@ export default function FighterJobModal({ job, onClose, onDelete, onRetry, onSav
           aria-labelledby="fighter-job-title"
           aria-describedby={job.status === "complete" ? "fighter-retarget-help" : "fighter-job-copy"}
         >
+          <button ref={closeRef} className="modal-close fighter-job-close" type="button" onClick={() => close()} aria-label="Close">
+            ×
+          </button>
           <div className="fighter-job-content">
             <h2 id="fighter-job-title" className="launch-flow-title fighter-job-title">
               {job.character?.name || job.name}
@@ -177,7 +195,6 @@ export default function FighterJobModal({ job, onClose, onDelete, onRetry, onSav
 
             {job.status === "complete" && onSaveSettings && (
               <section className="fighter-settings">
-                <h3>Character settings</h3>
                 <p id="fighter-retarget-help">Choose the fighter whose moves and animations your character uses.</p>
                 <label htmlFor="fighter-retarget">SM64</label>
                 <select id="fighter-retarget" value={retarget} disabled={saving || deleting || !!downloadFormat}
@@ -230,41 +247,64 @@ export default function FighterJobModal({ job, onClose, onDelete, onRetry, onSav
             )}
 
             {job.status === "complete" && downloadUrl && (
-              <section className="fighter-settings fighter-download" aria-labelledby="fighter-download-label">
-                <label id="fighter-download-label" htmlFor="fighter-download-url">Play locally or download</label>
-                <p id="fighter-download-help">Play on your computer by following the <a href="https://github.com/turtlesoupy/opensmash/blob/main/BUILDING.md" target="_blank" rel="noopener noreferrer">local-build instructions on GitHub</a> and providing this character URL.</p>
-                <input id="fighter-download-url" type="url" readOnly value={downloadUrl}
-                  aria-describedby="fighter-download-help" onFocus={(event) => event.target.select()} />
-                <div className="fighter-download-actions">
-                  <button className="launch-flow-action" type="button" onClick={async () => {
-                    try {
-                      await navigator.clipboard.writeText(downloadUrl);
-                      setCopyMessage("Download URL copied.");
-                    } catch {
-                      setCopyMessage("Select the URL above to copy it manually.");
-                    }
-                  }}>Copy URL</button>
-                  <button className="launch-flow-action" type="button" disabled={exportingSource} onClick={async()=>{
-                    setExportingSource(true);setDownloadError("");
-                    try {
-                      const response=await fetch(`/api/fighters/${job.id}/export-source`,{method:'POST'});
-                      const result=await response.json();if(!response.ok)throw Error(result.error||'Could not export character.');
-                      const url=new URL(result.url,window.location.origin).href;setMeleeUrl(url);
-                      try {await navigator.clipboard.writeText(url);setCopyMessage('Melee import URL copied.');}
-                      catch {setCopyMessage('Select the Melee URL below to copy it.');}
-                    }catch(error){setDownloadError(error.message);}
-                    finally{setExportingSource(false);}
-                  }}>{exportingSource?'Preparing Melee link…':'Copy Melee import URL'}</button>
-                  <button className="launch-flow-action" type="button" disabled={!!downloadFormat || saving}
-                    onClick={() => download("osb6")}>{downloadFormat === "osb6" ? "Downloading OSB6…" : "Download OSB6"}</button>
-                  <button className="launch-flow-action" type="button" disabled={!!downloadFormat || saving}
-                    onClick={() => download("obj")}>{downloadFormat === "obj" ? "Preparing OBJ…" : "Download OBJ"}</button>
+              <section className="fighter-download-sections" aria-labelledby="fighter-exports-title">
+                <h2 id="fighter-exports-title">Exports</h2>
+                <section className="fighter-settings fighter-download" aria-labelledby="fighter-smash-download-label">
+                  <h3 id="fighter-smash-download-label">Smash.fun</h3>
+                  <p id="fighter-download-help">Play on your computer by following the <a href="https://github.com/turtlesoupy/opensmash/blob/main/BUILDING.md" target="_blank" rel="noopener noreferrer">local-build instructions on GitHub</a> and providing this character URL.</p>
+                  <input id="fighter-download-url" aria-label="Character URL" type="url" readOnly value={downloadUrl}
+                    aria-describedby="fighter-download-help" onFocus={(event) => event.target.select()} />
+                  <div className="fighter-download-actions">
+                    <button className="launch-flow-action" type="button" onClick={async () => {
+                      try {
+                        await navigator.clipboard.writeText(downloadUrl);
+                        setCopyMessage("Download URL copied.");
+                      } catch {
+                        setCopyMessage("Select the URL above to copy it manually.");
+                      }
+                    }}>Copy URL</button>
+                    <button className="launch-flow-action" type="button" disabled={exportingSource} onClick={async()=>{
+                      setExportingSource(true);setDownloadError("");
+                      try {
+                        const response=await fetch(`/api/fighters/${job.id}/export-source`,{method:'POST'});
+                        const result=await response.json();if(!response.ok)throw Error(result.error||'Could not export character.');
+                        const url=new URL(result.url,window.location.origin).href;setMeleeUrl(url);
+                        try {await navigator.clipboard.writeText(url);setCopyMessage('Melee import URL copied.');}
+                        catch {setCopyMessage('Select the Melee URL below to copy it.');}
+                      }catch(error){setDownloadError(error.message);}
+                      finally{setExportingSource(false);}
+                    }}>{exportingSource?'Preparing Melee link…':'Copy Melee import URL'}</button>
+                  </div>
+                  {meleeUrl && <input aria-label="Melee import URL" type="url" readOnly value={meleeUrl} onFocus={event=>event.target.select()}/>}
+                  {copyMessage && <p role="status">{copyMessage}</p>}
+                </section>
+
+                <section className="fighter-settings fighter-download" aria-labelledby="fighter-raw-download-label">
+                  <h3 id="fighter-raw-download-label">Raw Data</h3>
+                  <p>OSB6 is the character bundle. OBJ includes the mesh and texture for 3D editors.</p>
+                  <div className="fighter-download-actions">
+                    <button className="launch-flow-action" type="button" disabled={!!downloadFormat || saving}
+                      onClick={() => download("osb6")}>{downloadFormat === "osb6" ? "Downloading OSB6…" : "Download OSB6"}</button>
+                    <button className="launch-flow-action" type="button" disabled={!!downloadFormat || saving}
+                      onClick={() => download("obj")}>{downloadFormat === "obj" ? "Preparing OBJ…" : "Download OBJ"}</button>
+                  </div>
+                </section>
+
+                <section className="fighter-settings fighter-download" aria-labelledby="fighter-melee-download-label">
+                  <h3 id="fighter-melee-download-label">Melee Export</h3>
+                  <p>Import the .dat as a costume in Nucleus or MEX Manager. The PNG is a 136 × 188 character-select portrait.</p>
+                  <div className="fighter-download-actions">
+                    <button className="launch-flow-action" type="button" disabled={!!downloadFormat || saving || deleting}
+                      onClick={() => download("dat")}>{downloadFormat === "dat" ? "Preparing Melee costume…" : "Download Melee costume (.dat)"}</button>
+                    <button className="launch-flow-action" type="button" disabled={!portraitUrl || !!downloadFormat || saving || deleting}
+                      onClick={() => download("png")}>{downloadFormat === "png" ? "Preparing portrait…" : "Download portrait (.png)"}</button>
+                  </div>
+                  {!portraitUrl && <p>A portrait isn’t available for this character yet.</p>}
+                </section>
+                <div className="fighter-settings">
+                  {downloadFormat && <p role="status">{downloadFormat === "dat" ? "Preparing your character for Melee costume export…" : downloadFormat === "png" ? "Preparing your portrait…" : downloadFormat === "obj" ? "Converting your character to OBJ…" : "Downloading your character…"}</p>}
+                  {downloadError && <p role="alert">{downloadError}</p>}
                 </div>
-                <p>Copy a Melee import URL to reuse your character in Melee. Anyone with that link can download its generated mesh and game art.</p>
-                {meleeUrl && <input aria-label="Melee import URL" type="url" readOnly value={meleeUrl} onFocus={event=>event.target.select()}/>}
-                {downloadFormat && <p role="status">{downloadFormat === "obj" ? "Converting your character to OBJ…" : "Downloading your character…"}</p>}
-                {downloadError && <p role="alert">{downloadError}</p>}
-                {copyMessage && <p role="status">{copyMessage}</p>}
               </section>
             )}
 
@@ -358,7 +398,6 @@ export default function FighterJobModal({ job, onClose, onDelete, onRetry, onSav
                 </button>
               )}
               <button
-                ref={closeRef}
                 className="launch-flow-action launch-flow-cancel fighter-job-cancel"
                 type="button"
                 onClick={() => close()}

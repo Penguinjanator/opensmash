@@ -1,7 +1,7 @@
-import {meleePath} from './paths';
+import {meleePath} from './paths.ts';
 
 /** Browser fitting: one disposable worker per fit, no persistent fitted cache. */
-export async function prepareNativeCostume(entry:{character:string;target:string;color:number},signal:AbortSignal):Promise<{filename:string;blob:Blob}> {
+export async function prepareNativeCostume(entry:{character:string;target:string;color:number;format?:'dat'},signal:AbortSignal):Promise<{filename:string;blob:Blob}> {
   const response=await fetch(meleePath('/api/native-fit/source/'+encodeURIComponent(entry.character)),{method:'POST',signal});
   const source=await response.json();
   if(!response.ok)throw Error(source.error||'The character could not be prepared.');
@@ -16,6 +16,9 @@ export async function prepareNativeCostume(entry:{character:string;target:string
     worker.onmessage=({data})=>{
       cleanup();
       if(data.error){reject(Error(data.error));return;}
+      // An older cached worker emits our runtime-only skinning format. Never
+      // offer those bytes as a standalone costume during a rolling deployment.
+      if(entry.format==='dat'&&data.format!=='dat'){reject(Error('Melee costume export needs updated game assets. Reload the page and try again.'));return;}
       data.metrics={...data.metrics,sourceCached:source.cached,sourcePreparationMs:source.sourcePreparationMs};
       console.info('[Native fit]',data.metrics);
       const diagnostics=window as Window & {meleeNativeFits?:unknown[]};

@@ -189,3 +189,56 @@ The experimental shared native launcher is described in
 website and keeps its test data separate from existing Melee installations.
 This development path is not yet a replacement for the standalone release
 packaging, and does not establish full web/native feature parity.
+
+### Export a Melee costume
+
+Open a completed custom character's settings, choose its Melee fighter, then
+select **Download Melee costume (.dat)** under **Exports → Melee Export**.
+The export uses the default costume slot, with the character and fighter names
+prefixed to the slot filename, such as `Alan-Turing-Mario-PlMrNr.dat`.
+Import it using **Import Costume** in MEX Manager or the
+costume importer in Nucleus; do not use their full-character/moveset importer.
+When replacing the default slot directly, restore the original filename at the
+end of the download name (`PlMrNr.dat` for Mario). Other slots may
+require the mod manager's costume conversion, rather than just a rename.
+
+**Download portrait (.png)** exports the existing character artwork at 136 × 188
+pixels for use as a character-select portrait. It preserves the image's aspect
+ratio with transparent padding and is downloaded separately from the costume.
+
+This is a skin with the selected fighter's existing moves and animations.
+Portraits, announcer audio, custom moves, and OpenSmash presentation effects are
+not included. A transforming fighter's other form and the Ice Climbers' partner
+have separate costume files. Netplay safety and compatibility with a particular
+modded build still require testing in that build.
+
+The exporter reuses native WASM fitting and writes standard HSD/GX envelopes,
+ten-matrix palettes and tiled RGBA8 textures, following the existing Python
+`gx.polygons` exporter. It does not download the runtime-only OSSK costume.
+Invalid vertices, weights, slots and oversized archives fail the download.
+Triangles are grouped by shared envelopes to keep the polygon chain short;
+exports exceeding 384 polygons are rejected because stock HSD loads that chain
+recursively. Excessive recursion can corrupt game state and cause unrelated
+material assertions later during match loading.
+Hosted releases must publish the updated fitting worker together with the UI;
+the client rejects an older worker's runtime-format response.
+
+For local prepared assets, run from `engines/melee`:
+
+```sh
+node tools/export_dat.mjs alanturing mario build/costume-export
+python3 -m unittest discover -s tests -p test_dat_export.py -v
+```
+
+The CLI consumes existing `build/native-fit/local/{sources,targets}` and the
+built native fitter. The tests independently decode the output with the Python
+HSD/GX parser, including a local fixture matrix across every prepared neutral
+fighter rig. Game-derived fixtures and exported DATs remain in ignored build
+output. These structural checks alone are not a gameplay or netplay certificate.
+
+The initial stock-game smoke test used Alan Turing on Mario's default costume,
+NTSC 1.02 and Dolphin 2609, replacing only `PlMrNr.dat` in a separate extracted
+game folder. The original game executable and rules were unchanged. It loaded
+and completed a Classic-match input replay with jumps, attacks and fireballs;
+this does not certify every character, target,
+mod manager, or netplay setup.

@@ -30,6 +30,97 @@ class Archive {
   }
 }
 
+/** Standard HSD envelopes and GX matrix palettes, matching gx.polygons in the
+ * offline exporter. No OSSK skinning or OSUI presentation extension is needed. */
+export function buildStandardCostume(raw,source,target,fitted,texture,color=0){
+  const a=new Archive(raw),n=source.n,slots=target.mode==='round'?5:4;
+  if(!Number.isInteger(n)||n<1||n>65535||!Number.isInteger(source.triangleCount)||source.triangleCount<1||source.triangleCount>100000
+    ||source.uv.length!==n*2||source.triangles.length!==source.triangleCount*3
+    ||fitted.positions.length!==n*3||fitted.normals.length!==n*3||fitted.joints.length!==n*slots||fitted.weights.length!==n*slots
+    ||!Number.isInteger(source.textureSize)||source.textureSize<4||source.textureSize>1024||source.textureSize%4
+    ||texture.byteLength!==source.textureSize**2*4)throw Error('Invalid costume surface');
+  if(target.templateColor!==color)throw Error('Costume template does not match selected color');
+  for(const array of [source.uv,fitted.positions,fitted.normals])if(!array.every(x=>Number.isFinite(x)&&Number.isFinite(Math.fround(x))))throw Error('Invalid costume vertex');
+  const envs=[],indices=[],known=new Map();
+  for(let i=0;i<n;i++){
+    const env=[];let sum=0;
+    for(let k=0;k<slots;k++){
+      const j=fitted.joints[i*slots+k],w=fitted.weights[i*slots+k];
+      if(!Number.isFinite(w)||w<0)throw Error('Invalid costume weight');
+      if(j===0xffffffff){if(w!==0)throw Error('Invalid unused costume weight');continue;}
+      if(!Number.isInteger(j)||j<0||j>=target.jointOffsets.length)throw Error('Invalid costume joint');
+      if(w>0){env.push([j,w]);sum+=w;}
+    }
+    if(!env.length||Math.abs(sum-1)>.0001)throw Error('Invalid costume envelope');
+    const key=JSON.stringify(env);if(!known.has(key)){known.set(key,envs.length);envs.push(env);}indices.push(known.get(key));
+  }
+  for(const vertex of source.triangles)if(!Number.isInteger(vertex)||vertex<0||vertex>=n)throw Error('Invalid triangle index');
+  // Retain the offline exporter's attachment placement and original skeleton.
+  for(const row of preparePresentation(target,fitted).attachments)row.value.forEach((v,i)=>a.f32(row.offset+i*4,v));
+  const pos=a.floats(fitted.positions),normal=a.floats(fitted.normals),uv=a.floats(source.uv),desc=a.alloc(120);
+  [[0,1,0,0,null],[9,3,1,12,pos],[10,3,0,12,normal],[13,3,1,8,uv],[255,0,0,0,null]].forEach(([attr,kind,count,stride,ptr],i)=>{
+    const p=desc+i*24;[attr,kind,count,4].forEach((x,k)=>a.u32(p+k*4,x));a.u16(p+18,stride);a.pointer(p+20,ptr);
+  });
+  const records=new Map();
+  let first=null,previous=null,palette=[],vertices=[];
+  function flush(){
+    if(!vertices.length)return;
+    const table=a.alloc((palette.length+1)*4);
+    palette.forEach((index,i)=>{
+      if(!records.has(index)){
+        const original=envs[index];
+        // HSD's single-weight path skips inverse binding for a skeleton root.
+        const env=original.length===1?[[original[0][0],.5],[original[0][0],.5]]:original;
+        const record=a.alloc((env.length+1)*8);
+        env.forEach(([j,w],k)=>{a.pointer(record+k*8,target.jointOffsets[j]);a.f32(record+k*8+4,w);});
+        records.set(index,record);
+      }
+      a.pointer(table+i*4,records.get(index));
+    });
+    const blocks=Math.ceil((3+vertices.length*7)/32),dl=a.alloc(blocks*32,32);
+    a.bytes[dl]=0x90;a.u16(dl+1,vertices.length);
+    vertices.forEach((v,i)=>{const p=dl+3+i*7;a.bytes[p]=palette.indexOf(indices[v])*3;[1,3,5].forEach(k=>a.u16(p+k,v));});
+    const pobj=a.alloc(24);a.pointer(pobj+8,desc);a.u16(pobj+12,0x2000);a.u16(pobj+14,blocks);a.pointer(pobj+16,dl);a.pointer(pobj+20,table);
+    if(first===null)first=pobj;if(previous!==null)a.pointer(previous+4,pobj);previous=pobj;palette=[];vertices=[];
+  }
+  // Match gx.batches: grow through adjacent envelope users. Stock HSD loads
+  // the PObj linked list recursively, so a naive triangle-order split can
+  // overflow its stack and corrupt later fighter/effect material loads.
+  const triangles=[],needs=[],users=envs.map(()=>new Set()),remaining=new Set();
+  for(let i=0;i<source.triangleCount;i++){
+    const tri=source.triangles.slice(i*3,i*3+3),needed=[...new Set(tri.map(v=>indices[v]))];
+    triangles.push(tri);needs.push(needed);remaining.add(i);
+    for(const env of needed)users[env].add(i);
+  }
+  let batches=0;
+  while(remaining.size){
+    const candidates=new Set();let chosen=remaining.values().next().value;
+    while(true){
+      remaining.delete(chosen);vertices.push(...triangles[chosen]);
+      for(const env of needs[chosen]){
+        if(!palette.includes(env)){palette.push(env);for(const i of users[env])candidates.add(i);}
+        users[env].delete(chosen);
+      }
+      if(vertices.length+3>65535)break;
+      const earliest=remaining.values().next().value;
+      let next=earliest!==undefined&&needs[earliest].every(env=>palette.includes(env))?earliest:null,best=4;
+      if(next===null)for(const i of candidates){
+        if(!remaining.has(i)){candidates.delete(i);continue;}
+        const added=needs[i].filter(env=>!palette.includes(env)).length;
+        if(palette.length+added<=10&&(added<best||(added===best&&i<next))){best=added;next=i;}
+      }
+      if(next!==null)chosen=next;
+      else if(palette.length<=7&&remaining.size)chosen=remaining.values().next().value;
+      else break;
+    }
+    if(++batches>384)throw Error('This mesh is too complex for a standalone Melee costume. Simplify the model and try again.');
+    flush();
+  }
+  a.pointer(target.dobj+12,first);
+  const pixels=a.append(new Uint8Array(texture),32);a.pointer(target.image,pixels);a.u16(target.image+4,source.textureSize);a.u16(target.image+6,source.textureSize);a.u32(target.image+8,6);
+  const result=a.serialize();new Archive(result);return result;
+}
+
 export function buildCostume(raw,source,target,fitted,texture,color=0,identityRaw=null){
   const a=new Archive(raw),n=source.n,slots=target.mode==='round'?5:4;
   const presentation=preparePresentation(target,fitted);

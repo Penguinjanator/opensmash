@@ -4,7 +4,7 @@ import type {Fighter} from '../web/lib/fighter';
 import {desktop} from '../web/lib/desktop';
 // Resolve generated website fighters through the existing source-export format.
 // Both browser and native clients use the same importer API; only its location differs.
-export async function resolveFighters(action:any,roster:Fighter[],signal:AbortSignal,onStatus:(message:string)=>void){
+export async function resolveFighters(action:any,roster:Fighter[],signal:AbortSignal,onStatus:(message:string)=>void,{sourceOnly=!desktop()}={}){
  const resolved=new Map<string,Fighter>();
  async function json(url:string,init:RequestInit={}){
   const response=await fetch(url,{...init,signal,headers:{'Content-Type':'application/json',...init.headers}});
@@ -15,7 +15,7 @@ export async function resolveFighters(action:any,roster:Fighter[],signal:AbortSi
   onStatus('Preparing '+pick.name+' for Melee…');
   const target=meleeTargetFor(pick);
   const source=await json('/api/melee/source/'+encodeURIComponent(pick.slug),{method:'POST',body:'{}'});
-  let job=await json(meleePath('/api/imports'),{method:'POST',body:JSON.stringify({url:new URL(source.url,location.origin).href,target,sourceOnly:!desktop()})});
+  let job=await json(meleePath('/api/imports'),{method:'POST',body:JSON.stringify({url:new URL(source.url,location.origin).href,target,sourceOnly})});
   while(job.state!=='complete'){
    if(job.state==='failed')throw Error(job.message);
    onStatus(job.message||'Preparing character…');

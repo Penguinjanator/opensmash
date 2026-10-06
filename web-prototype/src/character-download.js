@@ -1,5 +1,9 @@
 import { objFilename, osb6ToObj } from "../shared/osb6-obj.js";
 
+export function meleeCostumeFilename(name, target, slotFilename) {
+  return `${objFilename(name)}-${objFilename(target)}-${slotFilename}`;
+}
+
 export async function texturePng({ rgba, textureWidth, textureHeight }) {
   const canvas = document.createElement("canvas");
   canvas.width = textureWidth; canvas.height = textureHeight;
@@ -34,6 +38,28 @@ export async function characterDownload(url, format, options, signal) {
   if (format === "obj") return objArchive(bytes, options);
   if (String.fromCharCode(...bytes.subarray(0,4)) !== "OSB6") throw new Error("The download is not an OSB6 character bundle.");
   return { blob: new Blob([bytes], { type: "application/octet-stream" }), filename: `${objFilename(options.name)}.osb6` };
+}
+
+export async function meleePortraitDownload(url, name, signal) {
+  const response = await fetch(url, { signal });
+  if (!response.ok) throw new Error("Could not download this portrait. Please try again.");
+  const image = await createImageBitmap(await response.blob());
+  try {
+    if (signal?.aborted) throw new DOMException("Download cancelled", "AbortError");
+    const canvas = document.createElement("canvas");
+    canvas.width = 136; canvas.height = 188;
+    const context = canvas.getContext("2d");
+    if (!context) throw new Error("Your browser could not create the portrait image.");
+    const scale = Math.min(canvas.width / image.width, canvas.height / image.height);
+    const width = image.width * scale, height = image.height * scale;
+    context.imageSmoothingQuality = "high";
+    context.drawImage(image, (canvas.width - width) / 2, (canvas.height - height) / 2, width, height);
+    const blob = await new Promise((resolve, reject) => canvas.toBlob(result => result ? resolve(result) : reject(new Error("Could not encode the portrait image.")), "image/png"));
+    if (signal?.aborted) throw new DOMException("Download cancelled", "AbortError");
+    return { blob, filename: `${objFilename(name)}-portrait.png` };
+  } finally {
+    image.close();
+  }
 }
 
 export function saveDownload({ blob, filename }) {
