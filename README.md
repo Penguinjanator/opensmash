@@ -12,6 +12,8 @@ https://github.com/user-attachments/assets/d3a589cf-1443-4926-8914-97371bd40b97
 Full trailer: [youtu.be/Uj3N_CbYMHs](https://youtu.be/Uj3N_CbYMHs). Play it at
 [smash.fun](https://smash.fun) (Smash 64) and [smash.fun/melee](https://smash.fun/melee).
 
+[![Discord](https://img.shields.io/discord/1544483755685585028?label=Discord&logo=discord&logoColor=white&color=5865F2)](https://discord.gg/qYBbGmwBhr)
+
 No Nintendo assets are in this repo or served by the site. The Smash 64 engine
 is [BattleShip](https://github.com/turtlesoupy/BattleShip), a decomp-based PC
 port, and the game's assets are extracted in the player's browser from their
