@@ -677,6 +677,11 @@ export default function RetroHome({
         </section>
         <div id="game-switch-row" className="is-game-switch" role="group" aria-label="Choose game" />
         <div className="arena-surface"><div id="replica-grid" className="replica-grid" role="grid" aria-label="Search, create, and character roster" />{!ready && <p className="retro-roster-loading">Loading fighters…</p>}<p id="fighter-empty-state" className="fighter-empty-state" role="status" aria-live="polite" hidden /><p id="fighter-pick-prompt" className="fighter-pick-prompt" role="status" aria-live="polite" hidden /></div>
+        <footer className="retro-site-footer">
+          <p>Smash.fun lets you create custom fighters and play them in your browser.</p>
+          <a href="/privacy.html">Privacy Policy</a>
+          {" · "}<a href="mailto:support@fun.inc">Contact</a>
+        </footer>
         <span id="replica-metrics" hidden>Building 200-cell grid…</span>
       </main>
 
@@ -706,6 +711,10 @@ export default function RetroHome({
                 </p>
                 <p className="launch-flow-copy">You must supply a legally obtained copy of the game ROM to play.</p>
                 <p className="launch-flow-copy">Your ROM and its assets stay on your device. Nothing is uploaded.</p>
+                <p className="launch-flow-copy">
+                  <a className="about-link" href="/privacy.html">Privacy Policy</a>
+                  {" · "}<a className="about-link" href="mailto:support@fun.inc">Contact</a>
+                </p>
                 <p className="launch-flow-copy">
                   The source is open at{" "}
                   <a className="about-link" href="https://github.com/turtlesoupy/opensmash" target="_blank" rel="noreferrer">

@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Privacy Policy · Smash.fun</title>
+  <style>
+    :root { color-scheme: dark; font-family: system-ui, sans-serif; background: #101116; color: #eee; }
+    body { margin: 0; }
+    main { max-width: 720px; margin: auto; padding: 48px 24px 80px; line-height: 1.65; }
+    h1, h2 { line-height: 1.2; } h1 { font-size: 2.4rem; } h2 { margin-top: 2rem; font-size: 1.35rem; }
+    a { color: #afd7ff; } .date { color: #b8bac4; }
+  </style>
+</head>
+<body><main>
+  <a href="/">← Smash.fun</a>
+  <h1>Privacy Policy</h1>
+  <p class="date">Updated October 22, 2026</p>
+  <p>Smash.fun is a browser game and custom fighter creation service operated by Thomas Dimson. This policy explains how the service handles your information. Contact <a href="mailto:support@fun.inc">support@fun.inc</a> with privacy questions or requests.</p>
+  <h2>Account information and Google sign-in</h2>
+  <p>When you sign in with Google, we receive your account identifier, name, email address, and profile picture when provided by Google. We use Firebase Authentication to authenticate you and create a session. We use your account identifier to associate your fighters with your account, manage access, and enforce creation limits. Fighter job records also store the creator's name, email address, and sign-in provider.</p>
+  <p>Google sign-in is used for authentication. The app does not request access to your Gmail messages, contacts, calendar, or Drive files. Account information is processed through Google/Firebase authentication and Google Cloud infrastructure. It is not included in the character-generation requests described below.</p>
+  <h2>Fighter creation and public content</h2>
+  <p>When you create a fighter, we process and store your uploaded reference image, its filename, the fighter name and other instructions, generated assets, and job status and diagnostic information. We send submitted content and relevant generated assets to services used for moderation and generation, including OpenAI, Tripo, and fal.ai (including voice generation using MiniMax models).</p>
+  <p>Fighters marked public and their published assets can be accessed by other people. Private fighters are subject to the app's access controls. Public assets may be downloaded or cached by others. Do not upload information or images you do not have permission to share and process.</p>
+  <h2>Cookies, device storage, and technical information</h2>
+  <p>We use cookies and browser storage for sign-in, ROM validation, preferences, and locally stored game data. Sign-in session cookies last up to 14 days. An email address entered for email-link sign-in is temporarily stored in your browser to complete sign-in.</p>
+  <p>Hosting, delivery, and security services process technical information such as IP addresses, browser information, requests, and errors to operate and protect the service. Google Cloud provides hosting and storage; Cloudflare provides delivery, bot protection, and connection services. Cloudflare Turnstile is used to protect fighter creation from abuse.</p>
+  <h2>Game ROMs and device transfers</h2>
+  <p>Normal game loading processes your ROM on your device. ROM validation sends its hash and file size to the server, rather than the ROM itself. If you choose to send a ROM to another device, the devices exchange it through an encrypted WebRTC connection. A relay may carry encrypted traffic when a direct connection is unavailable, and the server processes temporary connection-signalling information.</p>
+  <h2>Retention and deletion</h2>
+  <p>Account information is retained in Firebase Authentication, and fighter records, uploaded inputs, and generated assets are stored in the service's databases and object storage. These records do not currently have a single automatic deletion schedule.</p>
+  <p>Deleting a fighter in the app removes its job record and listing. It does not automatically erase all associated files from object storage or copies already downloaded or cached elsewhere. To request account deletion or removal of stored uploads and assets, email <a href="mailto:support@fun.inc">support@fun.inc</a> and identify your account and the content concerned. We may need to verify that the request comes from the account owner. Signing out ends your local session; it does not delete your account or stored fighters.</p>
+  <h2>Your choices and policy updates</h2>
+  <p>You can remove the app's Google access in <a href="https://myaccount.google.com/connections">your Google Account connections</a>, clear cookies and site storage in your browser, and contact us about your information. Removing Google access does not itself erase information already stored by Smash.fun. We will update this page when these practices change.</p>
+</main></body>
+</html>

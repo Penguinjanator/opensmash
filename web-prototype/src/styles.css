@@ -1263,6 +1263,16 @@ body.retro-home::before {
   letter-spacing: .04em;
   text-align: center;
 }
+.retro-site-footer {
+  padding: 24px 16px;
+  color: #ddd;
+  font: 14px/1.6 system-ui, sans-serif;
+  text-align: center;
+}
+.retro-site-footer a {
+  color: inherit;
+  text-underline-offset: 3px;
+}
 .retro-roster-loading {
   position: absolute;
   inset: 0;
