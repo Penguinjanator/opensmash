@@ -72,6 +72,24 @@ A self-hosted coturn works too: set `TURN_URLS`, `TURN_USERNAME`, and
 
 ## Build and deploy
 
+The API and worker images pin Node 22.23.4, which includes the fix for
+CVE-2026-111497 (Brotli decoder memory corruption). Keep both Dockerfiles'
+runtime pins, including the API build stage, on a patched release. Local
+development requires Node 22.23.4+, 24.22.1+, or 26.12.1+ within those major
+release lines.
+
+For this security update, rebuild and deploy both services; changing the
+Dockerfiles does not patch existing revisions. Verify that all traffic and
+warm instances use the new revisions and their newly built image digests.
+If the legacy `opensmash-fighter-worker` Cloud Run Job is retained for manual
+runs or rollback, update its image too before executing it. Check a built
+image's runtime with `node -p 'JSON.stringify(process.versions)'` (override
+the image command); the Node version must be 22.23.4 or a newer patched
+release. Do not roll back to a pre-fix image.
+Node 22.23.4 backports the Brotli fix while still reporting Brotli 1.1.0;
+use the [Node security release](https://nodejs.org/en/blog/release/v22.23.4)
+to verify that build rather than rejecting it based on the library version.
+
 The engine package must not contain ROM-derived assets; the browser builds
 `BattleShip.o2r` itself with Torch compiled to wasm (see
 `BattleShip/docs/web_rom_extraction.md`). `deploy.sh` therefore runs

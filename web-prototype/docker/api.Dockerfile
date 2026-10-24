@@ -1,4 +1,4 @@
-FROM node:22-bookworm-slim AS build
+FROM node:22.23.4-bookworm-slim AS build
 
 RUN corepack enable && corepack prepare pnpm@11.5.0 --activate
 WORKDIR /workspace/pipeline/web-prototype
@@ -14,7 +14,7 @@ COPY pipeline/engines/melee/runtime/launch-options.json /workspace/pipeline/engi
 COPY pipeline/engines/melee/runtime/web/launch-options.mjs /workspace/pipeline/engines/melee/runtime/web/launch-options.mjs
 RUN pnpm build
 
-FROM node:22-bookworm-slim
+FROM node:22.23.4-bookworm-slim
 ENV NODE_ENV=production
 RUN apt-get update && apt-get install -y --no-install-recommends python3 python3-venv && rm -rf /var/lib/apt/lists/*
 COPY pipeline/engines/melee/requirements.txt /tmp/melee-requirements.txt
