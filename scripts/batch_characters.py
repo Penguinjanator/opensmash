@@ -67,7 +67,7 @@ TRANSIENT_RE = re.compile(
     r"\b(?:img3d|rig) (?:running|queued|pending|unknown)\b", re.I)  # Tripo task still alive: re-poll, no re-buy
 MODERATION_STAGE_RE = re.compile(r"[\"']moderation_stage[\"']\s*:\s*[\"'](\w+)[\"']", re.I)
 TORN_RE = re.compile(r"torn-tri gate: (\d+)")
-TRIPO_FAIL_RE = re.compile(r"\b(?:img3d|rig) (?:failed|banned)\b")
+TRIPO_FAIL_RE = re.compile(r"\b(?:img3d|rig) (?:failed|banned|expired|cancelled)\b")
 PROGRESS_RE = re.compile(r"^@@opensmash (\{.*\})$", re.M)
 
 # Files a torn-tri re-roll must remove so run_character regenerates the image

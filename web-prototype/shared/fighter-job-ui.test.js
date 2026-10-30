@@ -58,10 +58,12 @@ test("job reconciliation does not replace a newer live event with stale polling 
 });
 
 test("Tripo edge rejection is a provider failure, not a photo safety failure", () => {
-  const job = { name: "Test", error: "RuntimeError: HTTP 403 from https://api.tripo3d.ai/v2/openapi/task: error code: 1010" };
-  assert.equal(formatFighterJobCellError(job), "Provider unavailable");
-  assert.match(formatFighterJobError(job), /3D provider is blocking our connection/);
-  assert.doesNotMatch(formatFighterJobError(job), /different photo|safety checks/);
+  for (const endpoint of ["https://api.tripo3d.ai/v2/openapi/task", "https://openapi.tripo3d.ai/v3/generation/image-to-model"]) {
+    const job = { name: "Test", error: `RuntimeError: HTTP 403 from ${endpoint}: error code: 1010` };
+    assert.equal(formatFighterJobCellError(job), "Provider unavailable");
+    assert.match(formatFighterJobError(job), /3D provider is blocking our connection/);
+    assert.doesNotMatch(formatFighterJobError(job), /different photo|safety checks/);
+  }
 });
 
 

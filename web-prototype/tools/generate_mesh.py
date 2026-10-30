@@ -28,7 +28,7 @@ PROJECT_ROOT = Path(__file__).resolve().parents[1]
 REPO_ROOT = PROJECT_ROOT.parent
 DEFAULT_OUTPUT_DIR = PROJECT_ROOT / "visual" / "assets" / "generated"
 MESHY_BASE_URL = "https://api.meshy.ai"
-TRIPO_BASE_URL = "https://api.tripo3d.ai/v2/openapi"
+TRIPO_BASE_URL = "https://openapi.tripo3d.ai/v3"
 
 
 class ApiError(RuntimeError):
@@ -132,7 +132,7 @@ def upload_tripo_image(path: Path) -> str:
         )
     )
     request = urllib.request.Request(
-        f"{TRIPO_BASE_URL}/upload/sts",
+        f"{TRIPO_BASE_URL}/files",
         data=body,
         headers={
             "Accept": "application/json",
@@ -153,7 +153,7 @@ def upload_tripo_image(path: Path) -> str:
     if not isinstance(result, dict):
         raise ApiError("Tripo upload returned an unexpected response")
     ensure_tripo_success(result)
-    token = result.get("data", {}).get("image_token")
+    token = result.get("data", {}).get("file_token")
     if not isinstance(token, str) or not token:
         raise ApiError("Tripo upload did not return an image token")
     return token
@@ -165,7 +165,7 @@ def check_credentials(provider: str) -> dict[str, Any]:
         response = request_json(f"{MESHY_BASE_URL}/openapi/v1/balance", token=token)
         return {"balance": response.get("balance")}
 
-    response = request_json(f"{TRIPO_BASE_URL}/user/balance", token=token)
+    response = request_json(f"{TRIPO_BASE_URL}/account/balance", token=token)
     ensure_tripo_success(response)
     data = response.get("data", {})
     return {"balance": data.get("balance"), "frozen": data.get("frozen")}
@@ -238,7 +238,7 @@ def get_meshy_task(task_id: str) -> dict[str, Any]:
 
 def create_tripo_task(args: argparse.Namespace) -> str:
     body: dict[str, Any] = {
-        "type": "text_to_model",
+        "model": args.model_version or "v2.5-20250123",
         "prompt": args.prompt,
         "texture": args.textured,
         "pbr": args.textured,
@@ -247,11 +247,8 @@ def create_tripo_task(args: argparse.Namespace) -> str:
         body["negative_prompt"] = args.negative_prompt
     if args.target_polycount is not None:
         body["face_limit"] = args.target_polycount
-    if args.model_version:
-        body["model_version"] = args.model_version
-
     response = request_json(
-        f"{TRIPO_BASE_URL}/task",
+        f"{TRIPO_BASE_URL}/generation/text-to-model",
         token=api_key("tripo"),
         method="POST",
         body=body,
@@ -265,8 +262,7 @@ def create_tripo_task(args: argparse.Namespace) -> str:
 
 def create_tripo_multiview_task(args: argparse.Namespace, tokens: list[str]) -> str:
     body: dict[str, Any] = {
-        "type": "multiview_to_model",
-        "files": [{"type": "png", "file_token": token} for token in tokens],
+        "inputs": tokens,
         "texture": args.textured,
         "pbr": args.textured,
     }
@@ -277,10 +273,10 @@ def create_tripo_multiview_task(args: argparse.Namespace, tokens: list[str]) -> 
         if not (args.model_version or "").startswith("P1-"):
             body["smart_low_poly"] = True
     if args.model_version:
-        body["model_version"] = args.model_version
+        body["model"] = args.model_version
 
     response = request_json(
-        f"{TRIPO_BASE_URL}/task",
+        f"{TRIPO_BASE_URL}/generation/multiview-to-model",
         token=api_key("tripo"),
         method="POST",
         body=body,
@@ -293,12 +289,8 @@ def create_tripo_multiview_task(args: argparse.Namespace, tokens: list[str]) -> 
 
 
 def create_tripo_image_task(args: argparse.Namespace, token: str) -> str:
-    file_type = args.image.suffix.lower().lstrip(".")
-    if file_type == "jpeg":
-        file_type = "jpg"
     body: dict[str, Any] = {
-        "type": "image_to_model",
-        "file": {"type": file_type, "file_token": token},
+        "input": token,
         "texture": args.textured,
         "pbr": args.textured,
     }
@@ -309,10 +301,10 @@ def create_tripo_image_task(args: argparse.Namespace, token: str) -> str:
         if not (args.model_version or "").startswith("P1-"):
             body["smart_low_poly"] = True
     if args.model_version:
-        body["model_version"] = args.model_version
+        body["model"] = args.model_version
 
     response = request_json(
-        f"{TRIPO_BASE_URL}/task",
+        f"{TRIPO_BASE_URL}/generation/image-to-model",
         token=api_key("tripo"),
         method="POST",
         body=body,
@@ -326,7 +318,7 @@ def create_tripo_image_task(args: argparse.Namespace, token: str) -> str:
 
 def get_tripo_task(task_id: str) -> dict[str, Any]:
     response = request_json(
-        f"{TRIPO_BASE_URL}/task/{task_id}", token=api_key("tripo")
+        f"{TRIPO_BASE_URL}/tasks/{task_id}", token=api_key("tripo")
     )
     ensure_tripo_success(response)
     data = response.get("data")
@@ -370,7 +362,7 @@ def wait_for_task(
         if status == success_status:
             return task
         if status not in active_statuses:
-            error = task.get("task_error") or task.get("error_msg") or "No error detail"
+            error = task.get("error_message") or task.get("task_error") or task.get("error_msg") or "No error detail"
             if isinstance(error, dict):
                 error = error.get("message") or json.dumps(error)
             raise ApiError(f"{provider.title()} task {task_id} ended as {status}: {error}")
@@ -387,9 +379,9 @@ def task_model_url(provider: str, task: dict[str, Any], textured: bool) -> str:
     else:
         output = task.get("output", {})
         candidates = (
-            ("pbr_model", "model", "base_model")
+            ("model_url", "pbr_model", "model", "base_model")
             if textured
-            else ("base_model", "model", "pbr_model")
+            else ("model_url", "base_model", "model", "pbr_model")
         )
         url = next((output.get(name) for name in candidates if output.get(name)), None)
     if not isinstance(url, str) or not url:
@@ -601,7 +593,7 @@ def build_parser() -> argparse.ArgumentParser:
         "--target-polycount", type=int, help="requested face count"
     )
     generate_parser.add_argument(
-        "--model-version", help="Tripo model version; omit to use its API default"
+        "--model-version", help="Tripo model version; defaults to v2.5-20250123"
     )
     generate_parser.add_argument(
         "--output-dir", type=Path, default=DEFAULT_OUTPUT_DIR, help="download directory"

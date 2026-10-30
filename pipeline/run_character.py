@@ -240,8 +240,7 @@ def tripo_json(out):
     except json.JSONDecodeError:
         fields = dict(re.findall(r'"(\w+)"\s*:\s*"([^"\x00-\x1f]*)"', out))
         # Numeric fields too: consumed_credit is what the cost report bills
-        # from, and tripo.py's 700-char status cut leaves the trailing signed
-        # URL unterminated, so this path runs on every successful task.
+        # from. Retain this fallback for legacy/truncated status logs.
         for key, value in re.findall(r'"(\w+)"\s*:\s*(-?\d+(?:\.\d+)?)\b', out):
             fields.setdefault(key, float(value) if "." in value else int(value))
         if "status" in fields or "task_id" in fields or "image_token" in fields:
@@ -420,7 +419,7 @@ def main():
             st = {"status": "unknown"}
             for _ in range(90):
                 st = tripo_json(sh(["python3", pipeline_script("tripo.py"), "status", task_id], timeout=60))
-                if st["status"] in ("success", "failed", "banned"):
+                if st["status"] in ("success", "failed", "banned", "expired", "cancelled"):
                     break
                 time.sleep(10)
             return st
@@ -439,7 +438,7 @@ def main():
             # Keep a still-running task on disk so a retry resumes polling
             # instead of buying the mesh again; only a terminal status is
             # forgotten.
-            if st["status"] in ("failed", "banned"):
+            if st["status"] in ("failed", "banned", "expired", "cancelled"):
                 forget()
             raise RuntimeError(f"img3d {st['status']}")
         model_credits = st.get("consumed_credit")
@@ -455,7 +454,7 @@ def main():
             # Keep a still-running task on disk so a retry resumes polling
             # instead of buying the mesh again; only a terminal status is
             # forgotten.
-            if st["status"] in ("failed", "banned"):
+            if st["status"] in ("failed", "banned", "expired", "cancelled"):
                 forget()
             raise RuntimeError(f"rig {st['status']}")
         rig_credits = st.get("consumed_credit")

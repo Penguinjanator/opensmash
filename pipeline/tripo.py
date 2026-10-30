@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Tripo3D API front-end (v2 openapi) — alternative to Meshy.
+"""Tripo3D API front-end (v3 API) — alternative to Meshy.
 
 Subcommands:
   upload <image.png>                      -> image_token
@@ -28,7 +28,7 @@ if not KEY:
                     if line.startswith("TRIPO_API_KEY=")), None)
 if not KEY:
     raise RuntimeError("TRIPO_API_KEY is missing; set it in the environment or .env")
-BASE = "https://api.tripo3d.ai/v2/openapi"
+BASE = "https://openapi.tripo3d.ai/v3"
 # Tripo rejects urllib's generic client signature at its edge (403 / 1010).
 USER_AGENT = "OpenSmash/1.0 (+https://smash.fun)"
 
@@ -49,7 +49,9 @@ def http(url, body=None):
     while True:
         try:
             with urllib.request.urlopen(req, data, timeout=180) as r:
-                return json.loads(r.read().decode())
+                result = json.loads(r.read().decode())
+                ensure_success(result)
+                return result
         except urllib.error.HTTPError as e:
             detail = e.read().decode(errors="replace")
             if (e.code == 429 or e.code >= 500) and waited < 720:
@@ -66,45 +68,59 @@ def http(url, body=None):
             raise RuntimeError(f"HTTP {e.code} from {url}: {detail}") from e
 
 
+def ensure_success(result):
+    if result.get("code") != 0:
+        raise RuntimeError(f"Tripo API error {result.get('code')}: "
+                           f"{result.get('message') or result.get('error_message') or 'Unknown error'}")
+
+
 def cmd_upload(a):
     out = subprocess.run(
-        ["curl", "-s", "--user-agent", USER_AGENT, f"{BASE}/upload", "-H", f"Authorization: Bearer {KEY}",
+        ["curl", "--fail-with-body", "-sS", "--max-time", "180",
+         "--user-agent", USER_AGENT, f"{BASE}/files", "-H", f"Authorization: Bearer {KEY}",
          "-F", f"file=@{a.image}"], capture_output=True, text=True)
-    print(out.stdout)
+    if out.returncode:
+        raise RuntimeError(f"Tripo upload failed: {out.stderr or out.stdout}")
+    result = json.loads(out.stdout)
+    ensure_success(result)
+    token = result["data"].get("file_token")
+    if not token:
+        raise RuntimeError("Tripo upload returned no file_token")
+    # Preserve the CLI contract used by run_character and evaluation scripts.
+    print(json.dumps({"image_token": token, "file_token": token}))
 
 
 def cmd_img3d(a):
-    body = {"type": "image_to_model",
-            "file": {"type": "png", "file_token": a.image_token},
+    body = {"input": a.image_token,
             "face_limit": a.faces, "texture": True}
     if a.model:
-        body["model_version"] = a.model
-    print(json.dumps(http(f"{BASE}/task", body)))
+        body["model"] = a.model
+    print(json.dumps(http(f"{BASE}/generation/image-to-model", body)))
 
 
 def cmd_rig(a):
-    body = {"type": "animate_rig", "original_model_task_id": a.task_id,
+    body = {"input": a.task_id, "model": "v1.0-20240301", "spec": "tripo",
             "out_format": "glb"}
-    print(json.dumps(http(f"{BASE}/task", body)))
+    print(json.dumps(http(f"{BASE}/animations/rig", body)))
 
 
 def cmd_balance(a):
-    """Credit balance. Bracketing a task with this is the only way to see
-    what Tripo actually charged — task payloads carry no cost field."""
-    print(json.dumps(http(f"{BASE}/user/balance")["data"]))
+    """Available and reserved credits; v3 also reports per-task consumption."""
+    print(json.dumps(http(f"{BASE}/account/balance")["data"]))
 
 
 def cmd_status(a):
-    d = http(f"{BASE}/task/{a.task_id}")["data"]
+    d = http(f"{BASE}/tasks/{a.task_id}")["data"]
+    d["consumed_credit"] = d.get("credits_consumed")
     print(json.dumps({k: d.get(k) for k in
                       ("task_id", "type", "status", "progress",
-                       "consumed_credit", "output")})[:700])
+                       "consumed_credit", "error_code", "error_message", "output")}))
 
 
 def cmd_download(a):
-    d = http(f"{BASE}/task/{a.task_id}")["data"]
+    d = http(f"{BASE}/tasks/{a.task_id}")["data"]
     out = d.get("output") or {}
-    url = out.get("model") or out.get("pbr_model") or out.get("base_model") or out.get("rigged_model")
+    url = out.get("model_url") or out.get("model") or out.get("pbr_model") or out.get("base_model") or out.get("rigged_model")
     if not url:
         print(json.dumps({"error": "no model url", "output_keys": list(out.keys()),
                           "status": d.get("status")}))

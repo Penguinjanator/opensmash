@@ -1,4 +1,4 @@
-const PROVIDER_ACCESS_ERROR = /HTTP 403.*api\.tripo3d\.ai.*error code:\s*1010/i;
+const PROVIDER_ACCESS_ERROR = /HTTP 403.*(?:api|openapi)\.tripo3d\.ai.*error code:\s*1010/i;
 const COPYRIGHT_ERROR = /\b(copyright(?:ed)?|trademark|intellectual property|ip infringement|protected (?:content|work)|third party content)\b/i;
 const REFERENCE_ERROR = /\b(reference photo|reference image|input image|source image)\b/i;
 const SAFETY_ERROR = /\b(safety|moderation|content (?:filter|policy)|policy violation|responsible ai|recitation|prohibited|unsafe|nsfw|nudity|abusive|blocked|rejected|flagged|disallowed)\b/i;
